@@ -13,7 +13,10 @@ import notificationRoutes from './routes/notifications';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
+
+// Behind Nginx/other reverse proxy: req.secure / X-Forwarded-* (needed for secure cookies in production)
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({

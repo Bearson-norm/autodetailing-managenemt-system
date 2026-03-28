@@ -3,6 +3,9 @@
 # Prerequisites: full (non-shallow) git clone, Node 20+, PostgreSQL (local or remote),
 # PM2, backend/.env on the server. For production API URL in the SPA, add repo-root
 # .env.production (e.g. VITE_API_URL=/api) — Vite reads it for `npm run build`.
+#
+# Fast path (GitHub Actions): set DEPLOY_RELEASE_TGZ to a tarball containing dist/ and backend/dist/
+# produced on the runner — skips frontend install/build and backend tsc on the VPS.
 set -euo pipefail
 
 : "${DEPLOY_PATH:?Set DEPLOY_PATH to the absolute app directory on the server (e.g. /var/www/autodetaailing)}"
@@ -14,7 +17,6 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-# Full clone recommended on the VPS; shallow clones may fail to resolve arbitrary SHAs.
 git fetch origin
 
 if [[ -n "${GITHUB_SHA:-}" ]]; then
@@ -25,28 +27,50 @@ else
   git reset --hard "origin/${BRANCH}"
 fi
 
-# Do not set NODE_ENV=production before npm ci: Vite (frontend) and tsx (backend migrate)
-# live in devDependencies and would be skipped.
-npm ci
-NODE_ENV=production npm run build
-
-(
-  cd backend
-  npm ci
-  npm run build
-  npm run migrate
-)
-
-if command -v pm2 >/dev/null 2>&1; then
-  if pm2 describe autodetaailing-api >/dev/null 2>&1; then
-    pm2 restart autodetaailing-api --update-env
+pm2_restart() {
+  if command -v pm2 >/dev/null 2>&1; then
+    if pm2 describe autodetaailing-api >/dev/null 2>&1; then
+      pm2 restart autodetaailing-api --update-env
+    else
+      pm2 start ecosystem.config.cjs --only autodetaailing-api
+    fi
+    pm2 save
   else
-    pm2 start ecosystem.config.cjs --only autodetaailing-api
+    echo "Error: pm2 is not installed. Example: sudo npm install -g pm2"
+    exit 1
   fi
-  pm2 save
-else
-  echo "Error: pm2 is not installed. Example: sudo npm install -g pm2"
-  exit 1
+}
+
+# --- Fast deploy: extract pre-built artifacts from CI (no root npm, backend prod deps only) ---
+if [[ -n "${DEPLOY_RELEASE_TGZ:-}" ]]; then
+  if [[ ! -f "${DEPLOY_RELEASE_TGZ}" ]]; then
+    echo "Error: DEPLOY_RELEASE_TGZ set but file missing: ${DEPLOY_RELEASE_TGZ}"
+    exit 1
+  fi
+  rm -rf "${DEPLOY_PATH}/dist" "${DEPLOY_PATH}/backend/dist"
+  tar -xzf "${DEPLOY_RELEASE_TGZ}" -C "${DEPLOY_PATH}"
+  (
+    cd backend
+    npm ci --omit=dev
+    npm run migrate:prod
+  )
+  pm2_restart
+  rm -f "${DEPLOY_RELEASE_TGZ}"
+  echo "Deploy (artifact) finished at commit $(git rev-parse --short HEAD)"
+  exit 0
 fi
+
+# --- Full deploy (manual or no tarball): install devDependencies for Vite + tsc ---
+npm ci &
+( cd backend && npm ci ) &
+wait
+
+NODE_ENV=production npm run build &
+( cd backend && npm run build ) &
+wait
+
+( cd backend && npm run migrate:prod )
+
+pm2_restart
 
 echo "Deploy finished at commit $(git rev-parse --short HEAD)"

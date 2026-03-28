@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "migrate": "tsx src/migrations/run.ts",
+    "migrate:prod": "node dist/migrations/run.js",
     "seed": "tsx src/migrations/seed.ts"
   },
   "keywords": [],

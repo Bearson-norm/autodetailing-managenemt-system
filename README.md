@@ -33,7 +33,7 @@ DB_NAME=autodetaailing
 DB_USER=postgres
 DB_PASSWORD=your_password
 
-PORT=3001
+PORT=5000
 NODE_ENV=development
 SESSION_SECRET=your_secret_key
 CORS_ORIGIN=http://localhost:5173
@@ -54,7 +54,7 @@ Start backend server:
 npm run dev
 ```
 
-Backend akan berjalan di `http://localhost:3001`
+Backend akan berjalan di `http://localhost:5000`
 
 ### 2. Frontend Setup
 
@@ -64,10 +64,10 @@ Di root directory:
 npm install
 ```
 
-Buat file `.env` (optional, default ke `http://localhost:3001/api`):
+Buat file `.env` (optional, default ke `http://localhost:5000/api`):
 
 ```env
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:5000/api
 ```
 
 Start development server:

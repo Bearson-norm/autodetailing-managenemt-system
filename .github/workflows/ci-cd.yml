@@ -1,5 +1,5 @@
-# CI: build frontend + backend on every push/PR to main (or master).
-# CD: after a successful build, deploy to your VPS over SSH (push to main/master only).
+# CI: frontend + backend build in parallel; separate npm caches per job.
+# CD: uploads dist artifacts, deploys tarball to VPS (git sync + prod backend npm + migrate + PM2).
 #
 # One-time VPS preparation (database on the same machine):
 #   1. Install Node 20+, git, nginx (optional but typical), PM2: npm i -g pm2
@@ -8,10 +8,10 @@
 #        sudo -u postgres psql -c "CREATE DATABASE autodetaailing OWNER autodetaailing;"
 #   3. Clone this repo to VPS_DEPLOY_PATH (e.g. git clone … /var/www/autodetaailing)
 #   4. Create backend/.env on the server (never commit). Use DB_HOST=127.0.0.1 or localhost,
-#      production DB_* credentials, SESSION_SECRET, PORT=3001, NODE_ENV=production,
+#      production DB_* credentials, SESSION_SECRET, PORT=5000, NODE_ENV=production,
 #      CORS_ORIGIN=https://your-frontend-domain (must match the browser origin).
 #   5. Create root .env.production with VITE_API_URL (e.g. /api if Nginx proxies /api).
-#      Vite loads it automatically during deploy’s `npm run build`.
+#      Vite loads it during the runner build; artifact deploy does not run vite on the VPS.
 #   6. Configure Nginx (see scripts/deploy/nginx.example.conf) to serve dist/ and proxy /api.
 #
 # Required GitHub repository secrets:
@@ -40,12 +40,13 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write # upload-artifact / download-artifact
 
 jobs:
-  build:
-    name: Build
+  build-frontend:
+    name: Build frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,29 +56,56 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install & build frontend
+      - name: Install & build
         run: |
           npm ci
-          npm run build
+          NODE_ENV=production npm run build
 
-      - name: Install & build backend
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+          retention-days: 7
+
+  build-backend:
+    name: Build backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install & build
         run: |
           cd backend
           npm ci
           npm run build
 
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: backend/dist
+          retention-days: 7
+
   deploy:
     name: Deploy to VPS
-    needs: build
+    needs: [build-frontend, build-backend]
     if: >
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     environment: production
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -87,6 +115,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: backend/dist
+
+      - name: Pack release tarball
+        run: |
+          set -euo pipefail
+          tar czf "${RUNNER_TEMP}/autodetaailing-release.tgz" dist backend/dist
 
       - name: Setup SSH
         env:
@@ -111,6 +156,11 @@ jobs:
         run: |
           set -euo pipefail
           P="${VPS_PORT:-22}"
+          RELEASE_REMOTE="/tmp/autodetaailing-release-${GITHUB_SHA}.tgz"
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            -P "$P" \
+            "${RUNNER_TEMP}/autodetaailing-release.tgz" \
+            "${VPS_USER}@${VPS_HOST}:${RELEASE_REMOTE}"
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             -P "$P" \
             scripts/deploy/remote-deploy.sh \
@@ -118,7 +168,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             -p "$P" \
             "${VPS_USER}@${VPS_HOST}" \
-            "chmod +x /tmp/autodetaailing-remote-deploy.sh && DEPLOY_PATH=\"${VPS_DEPLOY_PATH}\" GITHUB_SHA=\"${GITHUB_SHA}\" bash /tmp/autodetaailing-remote-deploy.sh"
+            "chmod +x /tmp/autodetaailing-remote-deploy.sh && DEPLOY_PATH=\"${VPS_DEPLOY_PATH}\" GITHUB_SHA=\"${GITHUB_SHA}\" DEPLOY_RELEASE_TGZ=\"${RELEASE_REMOTE}\" bash /tmp/autodetaailing-remote-deploy.sh"
 
       - name: Smoke test (API health)
         run: |
@@ -127,4 +177,4 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             -p "$P" \
             "${VPS_USER}@${VPS_HOST}" \
-            "curl -fsS --max-time 15 http://127.0.0.1:3001/health"
+            "curl -fsS --max-time 15 http://127.0.0.1:5000/health"

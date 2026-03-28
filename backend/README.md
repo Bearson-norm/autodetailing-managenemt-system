@@ -29,7 +29,7 @@ DB_NAME=autodetaailing
 DB_USER=postgres
 DB_PASSWORD=your_password_here
 
-PORT=3001
+PORT=5000
 NODE_ENV=development
 
 SESSION_SECRET=your_session_secret_here_change_in_production
@@ -63,7 +63,7 @@ Ini akan membuat 3 user default:
 npm run dev
 ```
 
-Server akan berjalan di `http://localhost:3001`
+Server akan berjalan di `http://localhost:5000`
 
 ## API Endpoints
 

@@ -72,7 +72,7 @@ If you use different database settings, update:
 - `DB_NAME` - default: autodetaailing
 
 ### Frontend (.env)
-The file `.env` in the project root is optional. It defaults to `http://localhost:3001/api`. Only change if your backend runs on a different URL.
+The file `.env` in the project root is optional. It defaults to `http://localhost:5000/api`. Only change if your backend runs on a different URL.
 
 ## Step 4: Install Dependencies & Run Migrations
 
@@ -95,7 +95,7 @@ npm run dev        # Start frontend (Vite)
 ## Step 5: Access the Application
 
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3001
+- **Backend API**: http://localhost:5000
 
 ## Default Login Credentials
 
@@ -157,5 +157,5 @@ Untuk menguji alur (misalnya consumer buat pesanan → admin terima notifikasi),
 - To start fresh: drop the database and recreate it, then run migrate again
 
 ### CORS errors in browser
-- Ensure backend is running on port 3001
+- Ensure backend is running on port 5000
 - Check `CORS_ORIGIN=http://localhost:5173` in `backend/.env`
