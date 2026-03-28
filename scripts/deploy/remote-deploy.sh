@@ -25,10 +25,10 @@ else
   git reset --hard "origin/${BRANCH}"
 fi
 
-export NODE_ENV=production
-
+# Do not set NODE_ENV=production before npm ci: Vite (frontend) and tsx (backend migrate)
+# live in devDependencies and would be skipped.
 npm ci
-npm run build
+NODE_ENV=production npm run build
 
 (
   cd backend
