@@ -1,3 +1,7 @@
+/**
+ * Jalankan sekali pada database yang sudah punya schema lama (hanya menambah tabel push).
+ * Fresh install: `npm run migrate` sudah menyertakan 002.
+ */
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Pool } from 'pg';
@@ -13,34 +17,22 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || '',
 });
 
-async function runMigration() {
+async function run() {
   const client = await pool.connect();
-  
   try {
-    console.log('Running migration...');
-    const migration001 = readFileSync(
-      join(__dirname, '../../migrations/001_initial_schema.sql'),
-      'utf-8'
-    );
-    const migration002 = readFileSync(
-      join(__dirname, '../../migrations/002_push_subscriptions.sql'),
-      'utf-8'
-    );
-
+    const sql = readFileSync(join(__dirname, '../../migrations/002_push_subscriptions.sql'), 'utf-8');
     await client.query('BEGIN');
-    await client.query(migration001);
-    await client.query(migration002);
+    await client.query(sql);
     await client.query('COMMIT');
-    
-    console.log('Migration completed successfully!');
-  } catch (error) {
+    console.log('002_push_subscriptions applied successfully.');
+  } catch (e) {
     await client.query('ROLLBACK');
-    console.error('Migration failed:', error);
-    throw error;
+    console.error(e);
+    throw e;
   } finally {
     client.release();
     await pool.end();
   }
 }
 
-runMigration().catch(console.error);
+run().catch(() => process.exit(1));

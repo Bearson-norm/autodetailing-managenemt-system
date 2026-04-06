@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { Toaster } from './components/ui/sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotifications } from './hooks/useNotifications';
+import { useWebPush } from './hooks/useWebPush';
 
 // Consumer Components
 import { ConsumerHome } from './components/consumer/ConsumerHome';
@@ -39,6 +40,8 @@ const MainApp: React.FC = () => {
 
   // Notifikasi real-time: pesanan baru, work order assigned, work order selesai
   useNotifications(!!currentUser, currentUser?.role, refreshData, handleNewOrderBanner);
+  // Web Push (notifikasi sistem saat tab tertutup) — admin & worker
+  useWebPush(!!currentUser, currentUser?.role);
 
   if (isInitializing) {
     return (

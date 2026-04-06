@@ -24,6 +24,9 @@ notificationEmitter.setMaxListeners(100);
 
 export function emitNotification(payload: NotificationPayload): void {
   notificationEmitter.emit('notification', payload);
+  void import('./pushService')
+    .then((m) => m.sendPushForNotification(payload))
+    .catch((err) => console.error('Web Push:', err));
 }
 
 export function onNotification(callback: (payload: NotificationPayload) => void): () => void {

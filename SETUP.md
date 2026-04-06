@@ -137,6 +137,24 @@ Untuk menguji alur (misalnya consumer buat pesanan → admin terima notifikasi),
 - **Vibrate** – Getar saat notifikasi (jika didukung perangkat)
 - **iOS** – Dukungan terbatas; untuk notifikasi saat app tertutup, tambahkan ke Home Screen (PWA) dan gunakan iOS 16.4+
 
+### Web Push (tab tertutup / layar kunci)
+
+Notifikasi **sistem** ke HP/laptop saat tab tidak aktif memakai **Web Push** (admin & worker).
+
+1. **Migrasi tabel** `push_subscriptions`:
+   - Database baru: `cd backend && npm run migrate` (sudah menyertakan `002_push_subscriptions.sql`)
+   - Database lama yang sudah pernah di-migrate: `cd backend && npm run migrate:push`
+2. **Kunci VAPID** di `backend/.env`:
+   ```bash
+   cd backend
+   npx web-push generate-vapid-keys
+   ```
+   Salin output ke `VAPID_PUBLIC_KEY` dan `VAPID_PRIVATE_KEY`, dan set `VAPID_SUBJECT=mailto:email@domain.com`.
+3. **HTTPS** di production (wajib untuk push di browser); `localhost` boleh HTTP untuk development.
+4. Setelah login sebagai **admin** atau **worker**, terima prompt **izinkan notifikasi** — subscription akan tersimpan otomatis.
+
+Tanpa VAPID yang valid, SSE + banner di dalam tab tetap berjalan; Web Push dinonaktifkan sampai env diisi.
+
 ## Troubleshooting
 
 ### "Connection refused" or "ECONNREFUSED"

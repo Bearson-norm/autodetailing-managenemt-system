@@ -9,6 +9,7 @@ import userRoutes from './routes/users';
 import transactionRoutes from './routes/transactions';
 import workOrderRoutes from './routes/workOrders';
 import notificationRoutes from './routes/notifications';
+import pushRoutes from './routes/push';
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
