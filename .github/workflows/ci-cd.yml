@@ -23,8 +23,8 @@
 #   VPS_DEPLOY_PATH — absolute path to the app on the server (e.g. /var/www/autodetaailing)
 # Optional:
 #   VPS_PORT        — SSH port (default 22)
-#   VPS_API_PORT    — TCP port where Node listens for /health (default 5000). Set if your API
-#                     uses a different port (e.g. 5001 when Gunicorn owns 5000).
+#   VPS_API_PORT    — TCP port where Node listens for /health (workflow default: 5001). Set to
+#                     5000 if nothing else uses that port on the host. Must match backend/.env PORT.
 #   VPS_SSH_KNOWN_HOSTS — output of: ssh-keyscan -p PORT HOST (recommended to pin the host key)
 #
 # Repo Settings → Environments → "production": add the secrets there if you use protection rules.
@@ -179,7 +179,9 @@ jobs:
         run: |
           set -euo pipefail
           P="${VPS_PORT:-22}"
-          API_PORT="${VPS_API_PORT:-5000}"
+          # Default 5001: Gunicorn often binds 5000; match backend/.env PORT + Nginx proxy_pass.
+          # Override with secret VPS_API_PORT when your Node listens elsewhere (e.g. 5000 only).
+          API_PORT="${VPS_API_PORT:-5001}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             -p "$P" \
             "${VPS_USER}@${VPS_HOST}" \
