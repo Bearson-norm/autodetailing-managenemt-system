@@ -8,8 +8,10 @@
 #        sudo -u postgres psql -c "CREATE DATABASE autodetaailing OWNER autodetaailing;"
 #   3. Clone this repo to VPS_DEPLOY_PATH (e.g. git clone … /var/www/autodetaailing)
 #   4. Create backend/.env on the server (never commit). Use DB_HOST=127.0.0.1 or localhost,
-#      production DB_* credentials, SESSION_SECRET, PORT=5000, NODE_ENV=production,
+#      production DB_* credentials, SESSION_SECRET, PORT (see below), NODE_ENV=production,
 #      CORS_ORIGIN=https://your-frontend-domain (must match the browser origin).
+#      If Gunicorn/Flask already uses 5000 on the host, set PORT=5001 (or similar) and
+#      match Nginx proxy_pass + optional secret VPS_API_PORT for the smoke test.
 #   5. Create root .env.production with VITE_API_URL (e.g. /api if Nginx proxies /api).
 #      Vite loads it during the runner build; artifact deploy does not run vite on the VPS.
 #   6. Configure Nginx (see scripts/deploy/nginx.example.conf) to serve dist/ and proxy /api.
@@ -21,6 +23,8 @@
 #   VPS_DEPLOY_PATH — absolute path to the app on the server (e.g. /var/www/autodetaailing)
 # Optional:
 #   VPS_PORT        — SSH port (default 22)
+#   VPS_API_PORT    — TCP port where Node listens for /health (default 5000). Set if your API
+#                     uses a different port (e.g. 5001 when Gunicorn owns 5000).
 #   VPS_SSH_KNOWN_HOSTS — output of: ssh-keyscan -p PORT HOST (recommended to pin the host key)
 #
 # Repo Settings → Environments → "production": add the secrets there if you use protection rules.
@@ -112,6 +116,7 @@ jobs:
       VPS_USER: ${{ secrets.VPS_USER }}
       VPS_PORT: ${{ secrets.VPS_PORT }}
       VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+      VPS_API_PORT: ${{ secrets.VPS_API_PORT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -174,7 +179,8 @@ jobs:
         run: |
           set -euo pipefail
           P="${VPS_PORT:-22}"
+          API_PORT="${VPS_API_PORT:-5000}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             -p "$P" \
             "${VPS_USER}@${VPS_HOST}" \
-            "curl -fsS --max-time 15 http://127.0.0.1:5000/health"
+            "curl -fsS --max-time 15 http://127.0.0.1:${API_PORT}/health"
